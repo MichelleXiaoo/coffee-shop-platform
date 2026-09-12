@@ -8,11 +8,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "michelle-coffee-shop-001"
-    key            = "envs/dev/terraform.tfstate"
-    region         = "ap-southeast-2"
-    dynamodb_table = "terraform-state-lock"
-    encrypt        = true
+    bucket       = "michelle-coffee-shop-001"
+    key          = "envs/dev/terraform.tfstate"
+    region       = "ap-southeast-2"
+    use_lockfile = true
+    encrypt      = true
   }
 }
 
