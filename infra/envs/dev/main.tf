@@ -1,0 +1,45 @@
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+
+  backend "s3" {
+    bucket         = "michelle-coffee-shop-001"
+    key            = "envs/dev/terraform.tfstate"
+    region         = "ap-southeast-2"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
+}
+
+provider "aws" {
+  region = var.region
+}
+
+variable "region" {
+  type    = string
+  default = "ap-southeast-2"
+}
+
+module "vpc" {
+  source   = "../../modules/vpc"
+  name     = "coffee-dev"
+  vpc_cidr = "10.0.0.0/16"
+}
+
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "public_subnet_ids" {
+  value = module.vpc.private_subnet_ids
+}
+
+output "private_subnet_ids" {
+  value = module.vpc.public_subnet_ids
+}
+
