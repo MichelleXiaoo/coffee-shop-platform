@@ -11,8 +11,19 @@ data "aws_ami" "al2023" {
 # SG: NO inbound at all; allow outbound (SSM -> 443)
 resource "aws_security_group" "this" {
   name        = "${var.name}-sg"
-  description = "No inbound; allow all outbound for SSM"
+  description = "Inbound only if allowed_http_cidrs set. All outbound for SSM"
   vpc_id      = var.vpc_id
+
+  dynamic "ingress" {
+    for_each = length(var.allowed_http_cidrs) > 0 ? [1] : []
+    content {
+      description = "HTTP from allowed CIDRs"
+      from_port = var.app_port
+      to_port = var.app_port
+      protocol = "tcp"
+      cidr_blocks = var.allowed_http_cidrs
+    }
+  }
 
   egress {
     description = "Allow all outbound"

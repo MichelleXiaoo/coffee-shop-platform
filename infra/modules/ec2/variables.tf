@@ -19,3 +19,14 @@ variable "instnace_type" {
   default = "t3.micro"
 }
 
+variable "app_port" {
+  type = number
+  default = 80
+  description = "Port the app listens on"
+}
+
+variable "allowed_http_cidrs" {
+  type = list(string)
+  default = []
+  description = "CIDRs allowed inbound to app_port. Empty list = no inbound (secure default)."
+}

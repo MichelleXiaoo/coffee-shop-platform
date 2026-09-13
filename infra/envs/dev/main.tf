@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
   }
 
   backend "s3" {
@@ -20,28 +24,29 @@ provider "aws" {
   region = var.region
 }
 
-variable "region" {
-  type    = string
-  default = "ap-southeast-2"
-}
-
 module "vpc" {
   source   = "../../modules/vpc"
-  name     = "coffee-dev"
-  vpc_cidr = "10.0.0.0/16"
+  name     = var.env_name
+  vpc_cidr = var.vap_cidr
 }
 
 module "iam" {
   source = "../../modules/iam"
-  name   = "coffee-dev"
+  name   = var.env_name
+}
+
+data "http" "my_ip" {
+  url = "https://checkip.amazonaws.com"
 }
 
 module "ec2" {
   source                = "../../modules/ec2"
-  name                  = "coffee-dev"
+  name                  = var.env_name
   vpc_id                = module.vpc.vpc_id
   subnet_id             = module.vpc.public_subnet_ids[0]
   instance_profile_name = module.iam.instance_profile_name
+  instnace_type         = var.instance_type
+  allowed_http_cidrs    = ["${chomp(data.http.my_ip.response_body)}/32"]
 }
 
 output "vpc_id" {
