@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Michelle's Coffee Shop</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    .env { color: #666; font-size: 0.9rem; }
+    ul { padding-left: 1.2rem; }
+    label { display: block; margin: 0.5rem 0 0.2rem; }
+    button { margin-top: 0.8rem; padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Michelle's Coffee Shop</h1>
+  <p class="env">Environment: {{ env }}</p>
+
+  <h2>Menu</h2>
+  <ul>
+    {% for item in menu %}
+      <li>{{ item.name }} - ${{ "%.2f"|format(item.price) }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Place an order</h2>
+  <form method="post" action="/order">
+    <label for="customer">Your name</label>
+    <input id="customer" name="customer" required>
+
+    <label for="item">Item</label>
+    <select id="item" name="item">
+      {% for item in menu %}
+        <option value="{{ item.name }}">{{ item.name }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit">Order</button>
+  </form>
+
+  <h2>Recent orders ({{ orders|length }})</h2>
+  <ul>
+    {% for o in orders %}
+      <li>{{ o.customer }} - {{ o.item }}</li>
+    {% else %}
+      <li>No orders yet.</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>
