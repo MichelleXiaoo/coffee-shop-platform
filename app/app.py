@@ -8,6 +8,7 @@ MENU = [
     {"name": "Flat White", "price": 4.50},
     {"name": "Latte",      "price": 4.50},
     {"name": "Cold Brew",  "price": 5.00},
+    {"name": "Mocha",  "price": 5.50},
 ]
 
 # In-memory for now - replaced by DynamoDB in Phase 3.1
