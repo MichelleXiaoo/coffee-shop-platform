@@ -1,0 +1,6 @@
+# Normalize everything to LF in the repo and on checkout.
+# This project deploys to Linux, so LF everywhere avoids CRLF breakage in scrips.
+* text=auto eol=lf
+
+# Windows-only scripts genuinely want CRLF
+*.ps1 text eol=crlf 
