@@ -1,18 +1,49 @@
-# Terraform
+# ---- Terraform ----
+# Downloaded providers/modules - large and machine-specific
 **/.terraform/*
+
+# State files - live in the S3 backend, never in git (can contain secrets)
 *.tfstate
 *.tfstate.*
+*.tfstate.backup
 crash.log
-*.tfvars
-override.tf
+crash.*.log
+
+# Saved plans
+*.tfplan
+tfplan
+
+# CLI config that may hold credentials
 .terraformrc
 terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
-# Python / app
+# Variable files are ignored by default (they often hold secrets),
+# but these three contain no secrets and ARE needed to reproduce the project.
+*.tfvars
+*.tfvars.json
+!infra/envs/dev/terraform.tfvars
+!infra/envs/prod/terraform.tfvars
+!infra/shared/terraform.tfvars
+
+# ---- Python / app ----
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
+venv/
+*.egg-info/
 
-# OS
+# ---- Secrets / local env ----
+.env
+.env.*
+*.pem
+*.key
+
+# ---- OS / editor ----
 .DS_Store
 Thumbs.db
+.idea/
+*.swp
