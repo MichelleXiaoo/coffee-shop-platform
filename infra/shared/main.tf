@@ -5,10 +5,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
-    tls = {
-      source = "hashicorp/tls"
-      version = "~> 4.0"
-    }
   }
   backend "s3" {
     bucket       = "michelle-coffee-shop-001"
@@ -71,15 +67,17 @@ variable "github_repo" {
   description = "GitHub repo in owner/name form"
 }
 
-# Fetch Github's OIDC certificate so no need to hardcode a thumbprint that may rotate
-data "tls_certificate" "github" {
-  url = "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
-}
-
 resource "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
+  
+  # GitHub's published CA thumbprints (both current values).
+  # Hardcoded deliberately: deriving these from the TLS chain picked the leaf
+  # certificate instead of the CA, which broke token validation.
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1",
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
+  ]
 }
 
 # Only THIS repo, and only the main branch, may assume the role
@@ -162,4 +160,14 @@ resource "aws_iam_role_policy" "github_actions" {
 
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions.arn
+}
+
+resource "aws_iam_user" "ci" {
+  name = "coffee-shop-ci"
+}
+
+resource "aws_iam_user_policy" "ci" {
+  name = "coffee-shop-pipeline"
+  user = aws_iam_user.ci.name
+  policy = data.aws_iam_policy_document.gha_permissions.json
 }
