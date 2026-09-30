@@ -8,7 +8,7 @@ variable "env_name" {
   description = "Environment name prefix, like coffee-dev"
 }
 
-variable "vap_cidr" {
+variable "vpc_cidr" {
   type = string
 }
 

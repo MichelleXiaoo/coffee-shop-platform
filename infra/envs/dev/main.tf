@@ -27,7 +27,7 @@ provider "aws" {
 module "vpc" {
   source   = "../../modules/vpc"
   name     = var.env_name
-  vpc_cidr = var.vap_cidr
+  vpc_cidr = var.vpc_cidr
 }
 
 module "iam" {
