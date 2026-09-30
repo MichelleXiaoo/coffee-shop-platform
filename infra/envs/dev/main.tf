@@ -30,11 +30,6 @@ module "vpc" {
   vpc_cidr = var.vpc_cidr
 }
 
-module "iam" {
-  source = "../../modules/iam"
-  name   = var.env_name
-}
-
 data "http" "my_ip" {
   url = "https://checkip.amazonaws.com"
 }
@@ -69,3 +64,18 @@ output "ec2_public_ip" {
   value = module.ec2.public_ip
 }
 
+module "dynamodb" {
+  source = "../../modules/dynamodb"
+  name = var.env_name
+}
+
+module "iam" {
+  source = "../../modules/iam"
+  name   = var.env_name
+  enable_dynamodb_access = true    # literal - known at plan time
+  dynamodb_table_arn = module.dynamodb.table_arn  #computed - only used inside the policy
+}
+
+output "orders_table" {
+  value = module.dynamodb.table_name
+}
