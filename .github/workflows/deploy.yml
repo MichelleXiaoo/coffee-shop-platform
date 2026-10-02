@@ -13,6 +13,7 @@ env:
   ECR_REPOSITORY: coffee-shop
   TARGET_TAG_NAME: coffee-dev-app
   APP_ENV: dev
+  ORDERS_TABLE: coffee-dev-orders
 
 permissions:
   contents: read
@@ -24,12 +25,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: DEBUG - show OIDC claims
-        run: |
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{sub, aud, iss, repository, ref, event_name}'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -74,7 +69,7 @@ jobs:
               "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY}",
               "docker pull ${IMAGE}",
               "docker rm -f coffee-shop 2>/dev/null || true",
-              "docker run -d --name coffee-shop --restart unless-stopped -p 80:8080 -e APP_ENV=${APP_ENV} ${IMAGE}",
+              "docker run -d --name coffee-shop --restart unless-stopped -p 80:8080 -e APP_ENV=${APP_ENV} -e ORDERS_TABLE=${ORDERS_TABLE} -e AWS_DEFAULT_REGION=${AWS_REGION} ${IMAGE}",
               "docker ps --filter name=coffee-shop"
             ]
           }
