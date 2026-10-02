@@ -28,6 +28,7 @@ override.tf.json
 !infra/envs/dev/terraform.tfvars
 !infra/envs/prod/terraform.tfvars
 !infra/shared/terraform.tfvars
+!infra/backend/terraform.tfvars
 
 # ---- Python / app ----
 __pycache__/
