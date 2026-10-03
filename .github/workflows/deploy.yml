@@ -6,6 +6,8 @@ on:
     paths:
       - 'app/**'
       - '.github/workflows/deploy.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:        # run it manually from the Actions tab
 
 env:
@@ -19,7 +21,18 @@ permissions:
   contents: read
 
 jobs:
-  build-and-deploy:
+  # Runs on PRs only: prove the image still builds. No AWS access needed.
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (validation only)
+        run: docker build -t coffee-shop:pr-${{ github.sha}} app
+
+  # Runs on main only: build, push, deploy. 
+  deploy:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
