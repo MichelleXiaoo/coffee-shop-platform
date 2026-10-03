@@ -8,36 +8,38 @@ on:
       - '.github/workflows/deploy.yml'
   pull_request:
     branches: [main]
-  workflow_dispatch:        # run it manually from the Actions tab
+  workflow_dispatch:
 
 env:
   AWS_REGION: ap-southeast-2
   ECR_REPOSITORY: coffee-shop
-  TARGET_TAG_NAME: coffee-dev-app
-  APP_ENV: dev
-  ORDERS_TABLE: coffee-dev-orders
 
 permissions:
   contents: read
 
 jobs:
-  # Runs on PRs only: prove the image still builds. No AWS access needed.
+  # ---------------------------------------------------------------------------
+  # PRs: prove the image still builds. No AWS credentials are exposed here.
+  # ---------------------------------------------------------------------------
   validate:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build image (validation only)
-        run: docker build -t coffee-shop:pr-${{ github.sha}} app
 
-  # Runs on main only: build, push, deploy. 
-  deploy:
+      - name: Build image (validation only)
+        run: docker build -t coffee-shop:pr-${{ github.sha }} app
+
+  # ---------------------------------------------------------------------------
+  # main: build and push ONCE. Both environments deploy this same image.
+  # ---------------------------------------------------------------------------
+  build:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-
+    outputs:
+      image: ${{ steps.push.outputs.image }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -51,19 +53,41 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push image
+        id: push
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           IMAGE="$REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
           docker build -t "$IMAGE" app
           docker push "$IMAGE"
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "Pushed $IMAGE"
+
+  # ---------------------------------------------------------------------------
+  # dev: deploys automatically.
+  # ---------------------------------------------------------------------------
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      IMAGE: ${{ needs.build.outputs.image }}
+      TARGET_TAG: coffee-dev-app
+      APP_ENV: dev
+      ORDERS_TABLE: coffee-dev-orders
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Find target instance
         id: target
         run: |
           ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=$TARGET_TAG_NAME" \
+            --filters "Name=tag:Name,Values=$TARGET_TAG" \
                       "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[0].InstanceId" \
             --output text)
@@ -73,9 +97,9 @@ jobs:
       - name: Deploy via SSM Run Command
         if: steps.target.outputs.instance_id != '' && steps.target.outputs.instance_id != 'None'
         env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
           INSTANCE_ID: ${{ steps.target.outputs.instance_id }}
         run: |
+          REGISTRY="${IMAGE%%/*}"
           cat > params.json <<EOF
           {
             "commands": [
@@ -91,7 +115,7 @@ jobs:
           CMD_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy ${{ github.sha }}" \
+            --comment "Deploy ${{ github.sha }} to ${APP_ENV}" \
             --parameters file://params.json \
             --query "Command.CommandId" --output text)
 
@@ -104,4 +128,72 @@ jobs:
 
       - name: Note if no instance was running
         if: steps.target.outputs.instance_id == '' || steps.target.outputs.instance_id == 'None'
-        run: echo "::notice::No running coffee-dev-app instance found - image was built and pushed, but nothing was deployed."
+        run: echo "::notice::No running $TARGET_TAG instance - image built and pushed, nothing deployed."
+
+  # ---------------------------------------------------------------------------
+  # prod: same image, but gated behind manual approval (GitHub Environment
+  # protection rule) and only reachable after dev has succeeded.
+  # ---------------------------------------------------------------------------
+  deploy-prod:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      IMAGE: ${{ needs.build.outputs.image }}
+      TARGET_TAG: coffee-prod-app
+      APP_ENV: prod
+      ORDERS_TABLE: coffee-prod-orders
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find target instance
+        id: target
+        run: |
+          ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$TARGET_TAG" \
+                      "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[0].InstanceId" \
+            --output text)
+          echo "instance_id=$ID" >> "$GITHUB_OUTPUT"
+          echo "Found: $ID"
+
+      - name: Deploy via SSM Run Command
+        if: steps.target.outputs.instance_id != '' && steps.target.outputs.instance_id != 'None'
+        env:
+          INSTANCE_ID: ${{ steps.target.outputs.instance_id }}
+        run: |
+          REGISTRY="${IMAGE%%/*}"
+          cat > params.json <<EOF
+          {
+            "commands": [
+              "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY}",
+              "docker pull ${IMAGE}",
+              "docker rm -f coffee-shop 2>/dev/null || true",
+              "docker run -d --name coffee-shop --restart unless-stopped -p 80:8080 -e APP_ENV=${APP_ENV} -e ORDERS_TABLE=${ORDERS_TABLE} -e AWS_DEFAULT_REGION=${AWS_REGION} ${IMAGE}",
+              "docker ps --filter name=coffee-shop"
+            ]
+          }
+          EOF
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${{ github.sha }} to ${APP_ENV}" \
+            --parameters file://params.json \
+            --query "Command.CommandId" --output text)
+
+          echo "SSM command: $CMD_ID"
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query "{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}" \
+            --output json
+
+      - name: Note if no instance was running
+        if: steps.target.outputs.instance_id == '' || steps.target.outputs.instance_id == 'None'
+        run: echo "::notice::No running $TARGET_TAG instance - image built and pushed, nothing deployed."
