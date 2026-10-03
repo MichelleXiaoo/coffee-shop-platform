@@ -26,11 +26,6 @@ module "vpc" {
   vpc_cidr = var.vpc_cidr
 }
 
-module "iam" {
-  source = "../../modules/iam"
-  name   = var.env_name
-}
-
 module "ec2" {
   source                = "../../modules/ec2"
   name                  = var.env_name
@@ -62,3 +57,18 @@ output "ec2_public_ip" {
   value = module.ec2.public_ip
 }
 
+module "dynamodb" {
+  source = "../../modules/dynamodb"
+  name = var.env_name
+}
+
+module "iam" {
+  source = "../../modules/iam"
+  name   = var.env_name
+  enable_dynamodb_access = true  
+  dynamodb_table_arn = module.dynamodb.table_arn 
+}
+
+output "orders_table" {
+  value = module.dynamodb.table_name
+}
