@@ -10,6 +10,9 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+from prometheus_flask_exporter import PrometheusMetrics
+metrics = PrometheusMetrics(app)
+
 MENU = [
     {"name": "Espresso",   "price": 3.50},
     {"name": "Flat White", "price": 4.50},

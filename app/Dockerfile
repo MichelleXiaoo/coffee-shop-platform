@@ -18,4 +18,4 @@ USER appuser
 EXPOSE 8080
 
 # gunicorn, not Flask's dev server
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "app:app"]
