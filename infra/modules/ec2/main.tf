@@ -38,18 +38,15 @@ resource "aws_security_group" "this" {
 
 resource "aws_instance" "this" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = var.instnace_type
+  instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.this.id]
   iam_instance_profile   = var.instance_profile_name
 
-  # Install Docker so it's ready for Phase 2
-  user_data = <<-EOF
-    #!/bin/bash
-    dnf install -y docker
-    systemctl enable --now docker
-    usermod -aG docker ec2-user
-  EOF
+  user_data = templatefile("${path.module}/user_data.sh.tftpl", {
+    enable_monitoring      = var.enable_monitoring
+    grafana_admin_password = var.grafana_admin_password
+  })
 
   tags = { Name = "${var.name}-app" }
 
