@@ -16,3 +16,8 @@ variable "instance_type" {
   type    = string
   default = "t3.micro"
 }
+
+variable "alert_email" {
+  type        = string
+  description = "Address to send alarm notifications to"
+}
