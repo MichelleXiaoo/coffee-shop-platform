@@ -1,0 +1,59 @@
+#!/bin/bash
+set -uxo pipefail
+
+# ---- Docker ----
+dnf install -y docker
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+%{ if enable_monitoring ~}
+# ---- Monitoring stack ----
+mkdir -p /opt/monitoring/grafana-provisioning/datasources
+
+# Prometheus scrape config: host metrics + the application
+cat > /opt/monitoring/prometheus.yml <<'PROMCFG'
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: node
+    static_configs:
+      - targets: ['localhost:9100']
+
+  - job_name: coffee-shop
+    static_configs:
+      - targets: ['localhost:80']
+PROMCFG
+
+# Pre-wire Prometheus as a Grafana datasource so it needs no manual setup
+cat > /opt/monitoring/grafana-provisioning/datasources/prometheus.yml <<'DSCFG'
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true
+DSCFG
+
+# Host metrics. Needs host PID namespace and root filesystem (read-only).
+docker run -d --name node-exporter --restart unless-stopped \
+  --network host --pid host \
+  -v /:/host:ro,rslave \
+  quay.io/prometheus/node-exporter:latest --path.rootfs=/host
+
+# Metrics collection. Host networking so it can scrape localhost:9100 and :80.
+docker run -d --name prometheus --restart unless-stopped \
+  --network host \
+  -v /opt/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
+  prom/prometheus:latest
+
+# Visualisation. Reachable only via SSM port forwarding (no inbound rule).
+docker run -d --name grafana --restart unless-stopped \
+  --network host \
+  -e GF_SECURITY_ADMIN_PASSWORD='${grafana_admin_password}' \
+  -e GF_AUTH_ANONYMOUS_ENABLED=false \
+  -v /opt/monitoring/grafana-provisioning:/etc/grafana/provisioning:ro \
+  -v grafana-data:/var/lib/grafana \
+  grafana/grafana:latest
+%{ endif ~}

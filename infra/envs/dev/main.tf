@@ -35,13 +35,15 @@ data "http" "my_ip" {
 }
 
 module "ec2" {
-  source                = "../../modules/ec2"
-  name                  = var.env_name
-  vpc_id                = module.vpc.vpc_id
-  subnet_id             = module.vpc.public_subnet_ids[0]
-  instance_profile_name = module.iam.instance_profile_name
-  instnace_type         = var.instance_type
-  allowed_http_cidrs    = ["${chomp(data.http.my_ip.response_body)}/32"]
+  source                 = "../../modules/ec2"
+  name                   = var.env_name
+  vpc_id                 = module.vpc.vpc_id
+  subnet_id              = module.vpc.public_subnet_ids[0]
+  instance_profile_name  = module.iam.instance_profile_name
+  instance_type          = var.instance_type
+  allowed_http_cidrs     = ["${chomp(data.http.my_ip.response_body)}/32"]
+  enable_monitoring      = true
+  grafana_admin_password = var.grafana_admin_password
 }
 
 output "vpc_id" {
@@ -78,4 +80,11 @@ module "iam" {
 
 output "orders_table" {
   value = module.dynamodb.table_name
+}
+
+module "alarms" {
+  source      = "../../modules/alarms"
+  name        = var.env_name
+  instance_id = module.ec2.instance_id
+  alert_email = var.alert_email
 }
